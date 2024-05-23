@@ -17,6 +17,7 @@ function RegisterPage() {
         try {
             const res = await axios.post("http://localhost:3000/registerUser", credentials)
             if (res.status === 200) {
+                alert(res.data.message)
                 navigate("/login")
             }
         } catch (error) {

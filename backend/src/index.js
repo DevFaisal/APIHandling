@@ -1,6 +1,5 @@
 import express from "express";
-import connectDB from "../connectDB.js";
-import UserModel from "../models/UserModel.js";
+import getClient from "../getClient.js";
 import cors from "cors";
 import bcrypt from "bcrypt";
 
@@ -41,7 +40,12 @@ app.post("/registerUser", async (req, res) => {
       .json({ message: "Password must be at least 6 characters long" });
   }
   // Check if the user already exists
-  const user = await UserModel.findOne({ email });
+
+  const client = await getClient();
+  const result = await client.query(
+    `SELECT * FROM users WHERE email = '${email}'`
+  );
+  const user = result.rows[0];
 
   if (user) {
     return res.status(400).json({ message: "User already exists" });
@@ -51,18 +55,15 @@ app.post("/registerUser", async (req, res) => {
   const HashesPassword = bcrypt.hashSync(password, 10);
 
   //Save User
-  const newUser = new UserModel({
-    name,
-    email,
-    password: HashesPassword,
-  });
+  const newUser = await client.query(
+    `INSERT INTO users (name, email, password) VALUES ('${name}', '${email}', '${HashesPassword}')`
+  );
 
-  await newUser.save();
-
-  return res.status(200).json({ "You are Registered Mr": name });
+  return res.status(200).json({ message: `You are Registered Mr. ${name}` });
 });
 
 app.post("/loginUser", async (req, res) => {
+  const client = await getClient();
   const { email, password } = req.body;
 
   //Check all fields are given
@@ -71,21 +72,35 @@ app.post("/loginUser", async (req, res) => {
   }
 
   //Check weather the User is in DB or not
-  const user = await UserModel.findOne({ email });
+  const user = await client.query(
+    `SELECT * FROM users WHERE email = '${email}'`
+  );
 
   if (!user) {
     return res.status(400).json({ message: "User not Found " });
   }
-
-  const comparePassword = bcrypt.compareSync(password, user.password);
+  const DBpassword = user.rows[0];
+  const comparePassword = bcrypt.compareSync(password, DBpassword.password);
 
   if (!comparePassword) {
-    return res.status(401).json({ message: "Password shi galat" });
+    return res.status(401).json({ message: "Wrong Password" });
   }
   return res.status(200).json(user);
 });
 
 app.listen(port, () => {
-  connectDB();
+  getClient().then((client) => {
+    client.query(
+      `CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        password VARCHAR(255) NOT NULL
+      )`
+    );
+    console.log("Table created");
+  });
+
+  // console.log(UserTable);
   console.log(`Server is listening at http://localhost:${port}`);
 });
